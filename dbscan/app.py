@@ -1,74 +1,72 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import DBSCAN
+from sklearn.preprocessing import StandardScaler
+from pathlib import Path
 
 st.set_page_config(page_title="DBSCAN Clustering", layout="wide")
 
-st.title("DBSCAN Clustering - Mall Customers Dataset")
+st.title("DBSCAN Clustering - Mall Customers")
 
-# Load Dataset
-df = pd.read_csv("Mall_Customers.csv")
+# Find CSV automatically
+base_dir = Path(__file__).parent
+
+csv_files = list(base_dir.glob("*.csv"))
+
+if not csv_files:
+    st.error("No CSV file found in project folder.")
+    st.write("Files available:")
+    for file in base_dir.iterdir():
+        st.write(file.name)
+    st.stop()
+
+df = pd.read_csv(csv_files[0])
+
+st.success(f"Loaded: {csv_files[0].name}")
 
 st.subheader("Dataset Preview")
 st.dataframe(df.head())
 
-# Feature Selection
+# Features
 X = df[['Annual Income (k$)', 'Spending Score (1-100)']]
 
-# Standardization
+# Scaling
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
-# Sidebar Controls
-st.sidebar.header("DBSCAN Parameters")
+# Parameters
+eps = st.sidebar.slider("EPS", 0.1, 2.0, 0.5, 0.1)
+min_samples = st.sidebar.slider("Min Samples", 2, 20, 5)
 
-eps = st.sidebar.slider(
-    "Epsilon (eps)",
-    min_value=0.1,
-    max_value=2.0,
-    value=0.5,
-    step=0.1
-)
-
-min_samples = st.sidebar.slider(
-    "Min Samples",
-    min_value=2,
-    max_value=20,
-    value=5
-)
-
-# DBSCAN Model
-dbscan = DBSCAN(
+# DBSCAN
+model = DBSCAN(
     eps=eps,
     min_samples=min_samples
 )
 
-clusters = dbscan.fit_predict(X_scaled)
+clusters = model.fit_predict(X_scaled)
 
 df["Cluster"] = clusters
 
-# Number of Clusters
+# Metrics
 n_clusters = len(set(clusters)) - (1 if -1 in clusters else 0)
-
-# Noise Points
-noise_points = list(clusters).count(-1)
+noise = list(clusters).count(-1)
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.metric("Clusters Found", n_clusters)
+    st.metric("Clusters", n_clusters)
 
 with col2:
-    st.metric("Noise Points", noise_points)
+    st.metric("Noise Points", noise)
 
-# Cluster Visualization
-st.subheader("DBSCAN Cluster Visualization")
+# Visualization
+st.subheader("Cluster Visualization")
 
-fig, ax = plt.subplots(figsize=(8,6))
+fig, ax = plt.subplots(figsize=(8, 6))
 
-scatter = ax.scatter(
+ax.scatter(
     df['Annual Income (k$)'],
     df['Spending Score (1-100)'],
     c=df['Cluster']
@@ -80,24 +78,20 @@ ax.set_title("DBSCAN Clustering")
 
 st.pyplot(fig)
 
-# Cluster Distribution
+# Cluster Counts
 st.subheader("Cluster Distribution")
+st.bar_chart(df["Cluster"].value_counts())
 
-cluster_counts = df["Cluster"].value_counts().sort_index()
-
-st.bar_chart(cluster_counts)
-
-# Clustered Dataset
+# Data
 st.subheader("Clustered Dataset")
-
 st.dataframe(df)
 
-# Download Results
+# Download
 csv = df.to_csv(index=False)
 
 st.download_button(
-    label="Download Clustered Dataset",
-    data=csv,
-    file_name="dbscan_output.csv",
-    mime="text/csv"
+    "Download Results",
+    csv,
+    "dbscan_results.csv",
+    "text/csv"
 )
